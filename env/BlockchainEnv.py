@@ -71,16 +71,33 @@ def read_transactions_new(start_timestamp, end_timestamp, directory):
         print("Same date")
         # format start_date to a single string without the -
 
-        df = dask.delayed(pd.read_table)(f"{directory}/blockchair_bitcoin_transactions_{start_date}.tsv.gz")
+        # df = dask.delayed(pd.read_table)(f"{directory}/blockchair_bitcoin_transactions_{start_date}.tsv.gz")
+        try:
+            df = pd.read_table(f"{directory}/blockchair_bitcoin_transactions_{start_date}.tsv.gz", compression="gzip")
+        except:
+            df = pd.read_table(f"{directory}/blockchair_bitcoin_transactions_20170101.tsv.gz", compression="gzip")
+
+
+
     else:
         #         if start date and end date are different then read the two files and concat them
         print("Different date")
-        df1 = dask.delayed(pd.read_table)(f"{directory}/blockchair_bitcoin_transactions_{start_date}.tsv.gz")
-        df2 = dask.delayed(pd.read_table)(f"{directory}/blockchair_bitcoin_transactions_{end_date}.tsv.gz")
-        df = dask.delayed(pd.concat)([df1, df2], axis=0)
-    result = df.compute()
-    result.sort_values(by='fee', ascending=False, inplace=True)
-    return result
+        # df1 = dask.delayed(pd.read_table)(f"{directory}/blockchair_bitcoin_transactions_{start_date}.tsv.gz")
+        # df2 = dask.delayed(pd.read_table)(f"{directory}/blockchair_bitcoin_transactions_{end_date}.tsv.gz")
+        # df = dask.delayed(pd.concat)([df1, df2], axis=0)
+
+        try:
+            df1 = pd.read_table(f"{directory}/blockchair_bitcoin_transactions_{start_date}.tsv.gz", compression="gzip")
+            df2 = pd.read_table(f"{directory}/blockchair_bitcoin_transactions_{end_date}.tsv.gz", compression="gzip")
+            df = pd.concat([df1, df2], axis=0)
+        except:
+            df1 = pd.read_table(f"{directory}/blockchair_bitcoin_transactions_20170101.tsv.gz", compression="gzip")
+            df2 = pd.read_table(f"{directory}/blockchair_bitcoin_transactions_20170102.tsv.gz", compression="gzip")
+            df = pd.concat([df1, df2], axis=0)
+
+    # result = df.compute()
+    df.sort_values(by='fee', ascending=False, inplace=True)
+    return df
 
 
 def read_transactions(start_timestamp, end_timestamp, directory):
@@ -106,28 +123,47 @@ def search_by_timestamp(path, timestamp):
     filtered_data = df[df['index'].dt.date == date.date()]
     return filtered_data
 
-def search_by_timestamp_by_x(path, timestamp):
-    df = pd.read_csv(path)
-    # Convert the timestamp to a datetime format
-    date = pd.to_datetime(timestamp, unit='s')
-    # Filter the data based on the date
-    df['x'] = pd.to_datetime(df['x'])
-    filtered_data = df[df['x'].dt.date == date.date()]
-    return filtered_data
-
-
+# def search_by_timestamp_by_x(path, timestamp):
+#     df = pd.read_csv(path)
+#     # Convert the timestamp to a datetime format
+#     date = pd.to_datetime(timestamp, unit='s')
+#     # Filter the data based on the date
+#     df['x'] = pd.to_datetime(df['x'])
+#     filtered_data = df[df['x'].dt.date == date.date()]
+#     return filtered_data
+#
+#     def get_transaction_from_database(self, start_timestamp, end_timestamp):
+#         # Create a cursor object
+#         cursor = self.conn.cursor()
+#
+#         # Define the SQL query
+#         sql = '''SELECT * FROM transactions WHERE time BETWEEN %s AND %s'''
+#
+#         # Execute the query and retrieve the data
+#         cursor.execute(sql, (start_timestamp, end_timestamp))
+#         rows = cursor.fetchall()
+#
+#         # Convert the data to a pandas dataframe
+#         df = pd.DataFrame(rows,
+#                           columns=['block_id', 'time', 'size', 'input_total_usd', 'output_total',
+#                                    'output_total_usd',
+#                                    'fee', 'fee_usd', 'fee_per_kb', 'fee_per_kb_usd', 'id'])
+#
+#         # Close the cursor and connection
+#         cursor.close()
+#
+#         return df
 class BlockchainEnv(gym.Env):
     """A Blockchain simulation env for OpenAI gym"""
     metadata = {'render.modes': ['human']}
 
-    def __init__(self, conn):
+    def __init__(self):
         super(BlockchainEnv, self).__init__()
 
         # set content time 2016:01:01 00:00:00
         self.current_time = 1480982400
         self.starting_time = 1480982400
         self.block_size = 1000000
-        self.conn = conn
 
         # action space
         # self.action_space = spaces.Box(low=np.array([0]), high=np.array([1000000]), dtype=np.float32)
@@ -139,27 +175,6 @@ class BlockchainEnv(gym.Env):
         # reward
         self.reward = 0
 
-    def get_transaction_from_database(self, start_timestamp, end_timestamp):
-        # Create a cursor object
-        cursor = self.conn.cursor()
-
-        # Define the SQL query
-        sql = '''SELECT * FROM transactions WHERE time BETWEEN %s AND %s'''
-
-        # Execute the query and retrieve the data
-        cursor.execute(sql, (start_timestamp, end_timestamp))
-        rows = cursor.fetchall()
-
-        # Convert the data to a pandas dataframe
-        df = pd.DataFrame(rows,
-                          columns=['block_id', 'time', 'size', 'input_total_usd', 'output_total',
-                                   'output_total_usd',
-                                   'fee', 'fee_usd', 'fee_per_kb', 'fee_per_kb_usd', 'id'])
-
-        # Close the cursor and connection
-        cursor.close()
-
-        return df
 
     def step(self, action):
         # sum fees of last 10 min
@@ -186,12 +201,10 @@ class BlockchainEnv(gym.Env):
         # done if current time is 1 hour after start time
         done = self.current_time >= episode_end
 
-        if done:
-            print("=====================  EPISIDE END =====================")
-
+        print("=====================  EPISIDE STATUS =====================", done)
         return obs, reward, done, {}
 
-    def render(self):
+    def render(self, mode="human"):
         pass
 
     def _next_observation(self):
@@ -232,8 +245,11 @@ class BlockchainEnv(gym.Env):
 
         # set current_time to a random time between 1480982400 and 2020:01:01 01:00:00
         generated_timestamp = random.randint(1480982400, 1577836800)
+
         self.current_time = generated_timestamp
-        # self.current_time = 1480982400
         self.starting_time = generated_timestamp
+
+
+
         self.block_size = 1000000
         return self._next_observation()

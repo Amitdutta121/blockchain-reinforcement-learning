@@ -9,6 +9,7 @@ import dask
 import glob
 from datetime import datetime
 import dask.dataframe as dd
+from fastparquet import ParquetFile
 
 DURATION = 1 * 60 * 60 * 24  # 1 day
 EPISODE_END = 60 * 60 * 24 * 10  # 10 days
@@ -68,32 +69,38 @@ def read_transactions_new(start_timestamp, end_timestamp, directory):
     start_date = start_date.replace('-', '')
     end_date = end_date.replace('-', '')
     if start_date == end_date:
-        print("Same date")
+        # print("Same date")
         # format start_date to a single string without the -
 
         # df = dask.delayed(pd.read_table)(f"{directory}/blockchair_bitcoin_transactions_{start_date}.tsv.gz")
         try:
-            df = pd.read_table(f"{directory}/blockchair_bitcoin_transactions_{start_date}.tsv.gz", compression="gzip")
+
+            df = ParquetFile(f"{directory}/blockchair_bitcoin_transactions_{start_date}.parquet")
+            df = df.to_pandas()
         except:
-            df = pd.read_table(f"{directory}/blockchair_bitcoin_transactions_20170101.tsv.gz", compression="gzip")
+            df = ParquetFile(f"{directory}/blockchair_bitcoin_transactions_20170101.parquet")
+            df = df.to_pandas()
+
 
 
 
     else:
         #         if start date and end date are different then read the two files and concat them
-        print("Different date")
+        # print("Different date")
         # df1 = dask.delayed(pd.read_table)(f"{directory}/blockchair_bitcoin_transactions_{start_date}.tsv.gz")
         # df2 = dask.delayed(pd.read_table)(f"{directory}/blockchair_bitcoin_transactions_{end_date}.tsv.gz")
         # df = dask.delayed(pd.concat)([df1, df2], axis=0)
 
         try:
-            df1 = pd.read_table(f"{directory}/blockchair_bitcoin_transactions_{start_date}.tsv.gz", compression="gzip")
-            df2 = pd.read_table(f"{directory}/blockchair_bitcoin_transactions_{end_date}.tsv.gz", compression="gzip")
-            df = pd.concat([df1, df2], axis=0)
+
+            df1 = ParquetFile(f"{directory}/blockchair_bitcoin_transactions_{start_date}.parquet")
+            df2 = ParquetFile(f"{directory}/blockchair_bitcoin_transactions_{end_date}.parquet")
+
+            df = pd.concat([df1.to_pandas(), df2.to_pandas()], axis=0)
         except:
-            df1 = pd.read_table(f"{directory}/blockchair_bitcoin_transactions_20170101.tsv.gz", compression="gzip")
-            df2 = pd.read_table(f"{directory}/blockchair_bitcoin_transactions_20170102.tsv.gz", compression="gzip")
-            df = pd.concat([df1, df2], axis=0)
+            df1 = ParquetFile(f"{directory}/blockchair_bitcoin_transactions_20170101.parquet")
+            df2 = ParquetFile(f"{directory}/blockchair_bitcoin_transactions_20170102.parquet")
+            df = pd.concat([df1.to_pandas(), df2.to_pandas()], axis=0)
 
     # result = df.compute()
     df.sort_values(by='fee', ascending=False, inplace=True)
@@ -122,6 +129,10 @@ def search_by_timestamp(path, timestamp):
     df['index'] = pd.to_datetime(df['index'])
     filtered_data = df[df['index'].dt.date == date.date()]
     return filtered_data
+
+
+
+
 
 # def search_by_timestamp_by_x(path, timestamp):
 #     df = pd.read_csv(path)
@@ -170,18 +181,30 @@ class BlockchainEnv(gym.Env):
         self.action_space = spaces.Discrete(1000000)
 
         # observation space
-        self.observation_space = spaces.Box(low=0, high=1, shape=(5,), dtype=np.float32)
+        self.observation_space = spaces.Box(low=0, high=1, shape=(3,), dtype=np.float32)
 
         # reward
         self.reward = 0
 
+    # def filter_data_by_group_in_dataframe(self, start_timestamp, end_timestamp):
+    #     #     extract only date from timestamp
+    #
+    #     cc1 = datetime.fromtimestamp(int(start_timestamp)).date()
+    #     cc2 = datetime.fromtimestamp(int(end_timestamp)).date()
+    #
+    #     start_date = str(cc1.year)+"-"+str(cc1.month)+"-"+str(cc1.day)
+    #     end_date = str(cc2.year)+"-"+str(cc2.month)+"-"+str(cc2.day)
+    #     df1 = self.transaction_dump.get_group(start_date)
+    #     df2 = self.transaction_dump.get_group(end_date)
+    #     df = pd.concat([df1, df2], axis=0)
+    #     return df
 
     def step(self, action):
         # sum fees of last 10 min
-        print("action", action)
+        # print("action", action)
         total_fee_of_included_transactions, uncounted_transactions = sum_fees(read_transactions_new(
             self.current_time - DURATION, self.current_time,
-            "/Volumes/GoogleDrive/My Drive/blockchaindata/transaction_dump"
+            "./env/blockchaindata/dump/transaction_dump_parquet"
         ), action)
 
         # print("total_fee_of_included_transactions",total_fee_of_included_transactions)
@@ -189,7 +212,7 @@ class BlockchainEnv(gym.Env):
 
         reward = total_fee_of_included_transactions - (1 / action) * uncounted_transactions
 
-        print("reward", reward)
+        # print("reward", reward)
         # add 10 min to current time
         self.current_time += DURATION
 
@@ -201,30 +224,29 @@ class BlockchainEnv(gym.Env):
         # done if current time is 1 hour after start time
         done = self.current_time >= episode_end
 
-        print("=====================  EPISIDE STATUS =====================", done)
+        if done:
+            print("=====================  EPISIDE STATUS =====================", done)
         return obs, reward, done, {}
 
     def render(self, mode="human"):
         pass
 
     def _next_observation(self):
-
-        print("self.current_time",self.current_time)
-        main_value = \
-            get_transaction_per_second("./env/blockchaindata/state/transactions-per-second_*.pkl", self.current_time,
-                                       self.current_time, 'x')['y'].values[0]
+        # print("self.current_time", self.current_time)
+        # main_value = \
+        #     get_transaction_per_second("./env/blockchaindata/state/transactions-per-second_*.pkl", self.current_time,
+        #                                self.current_time, 'x')['y'].values[0]
         # print("main_value", main_value)
         difficulty = search_by_timestamp("./env/blockchaindata/networkstate/difficulty.csv", self.current_time)['y'].values[0]
         mempool_growth = search_by_timestamp("./env/blockchaindata/networkstate/mempool_growth.csv", self.current_time)['y'].values[0]
         n_transactions = search_by_timestamp("./env/blockchaindata/networkstate/n-transactions.csv", self.current_time)['y'].values[0]
-        output_volume = search_by_timestamp("./env/blockchaindata/networkstate/output-volume.csv", self.current_time)['y'].values[0]
+        # output_volume = search_by_timestamp("./env/blockchaindata/networkstate/output-volume.csv", self.current_time)['y'].values[0]
         # utxo_count = search_by_timestamp_by_x("./env/blockchaindata/networkstate/utxo-count.csv", self.current_time)['y'].values[0]
         # print("utxo_count",utxo_count)
         frame = np.array([
-            main_value,
+            # main_value,
             difficulty,
             mempool_growth,
-            n_transactions,
             n_transactions,
             # output_volume,
             # utxo_count
@@ -235,7 +257,7 @@ class BlockchainEnv(gym.Env):
         # normalize array
         normalizedData = frame / np.linalg.norm(frame)
 
-        print("normalizedData", normalizedData)
+        # print("normalizedData", normalizedData)
 
         return normalizedData
         # pass
@@ -248,8 +270,6 @@ class BlockchainEnv(gym.Env):
 
         self.current_time = generated_timestamp
         self.starting_time = generated_timestamp
-
-
 
         self.block_size = 1000000
         return self._next_observation()

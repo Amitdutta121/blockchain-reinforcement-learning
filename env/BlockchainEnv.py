@@ -1,18 +1,16 @@
+import glob
 import random
-from typing import Optional, Union, List, Tuple, Any, Dict
+from datetime import datetime
 
+import dask
 import gym
-from gym import spaces
 import numpy as np
 import pandas as pd
-import dask
-import glob
-from datetime import datetime
-import dask.dataframe as dd
 from fastparquet import ParquetFile
+from gym import spaces
 
 DURATION = 1 * 60 * 60 * 24  # 1 day
-EPISODE_END = 60 * 60 * 24 * 10  # 10 days
+EPISODE_END = 60 * 60 * 24 * 20  # 10 days
 
 
 def get_transaction_per_second(picklePath: str, start_timestamp: int, end_timestamp: int,
@@ -131,9 +129,6 @@ def search_by_timestamp(path, timestamp):
     return filtered_data
 
 
-
-
-
 # def search_by_timestamp_by_x(path, timestamp):
 #     df = pd.read_csv(path)
 #     # Convert the timestamp to a datetime format
@@ -168,23 +163,25 @@ class BlockchainEnv(gym.Env):
     """A Blockchain simulation env for OpenAI gym"""
     metadata = {'render.modes': ['human']}
 
-    def __init__(self):
+    def __init__(self, state_data):
         super(BlockchainEnv, self).__init__()
 
         # set content time 2016:01:01 00:00:00
         self.current_time = 1480982400
         self.starting_time = 1480982400
-        self.block_size = 1000000
+        self.block_size = random.randint(0, 10000000)
 
         # action space
         # self.action_space = spaces.Box(low=np.array([0]), high=np.array([1000000]), dtype=np.float32)
-        self.action_space = spaces.Discrete(1000000)
+        self.action_space = spaces.Discrete(10000000)
 
         # observation space
-        self.observation_space = spaces.Box(low=0, high=1, shape=(3,), dtype=np.float32)
+        self.observation_space = spaces.Box(low=0, high=1, shape=(4,), dtype=np.float32)
 
         # reward
         self.reward = 0
+
+        self.state_data = state_data
 
     # def filter_data_by_group_in_dataframe(self, start_timestamp, end_timestamp):
     #     #     extract only date from timestamp
@@ -198,6 +195,15 @@ class BlockchainEnv(gym.Env):
     #     df2 = self.transaction_dump.get_group(end_date)
     #     df = pd.concat([df1, df2], axis=0)
     #     return df
+
+    def search_state_data_by_timestamp(self, start_timestamp):
+        start_date = datetime.fromtimestamp(int(start_timestamp)).strftime('%Y-%m-%d')
+
+        df = self.state_data[self.state_data['Datetime'] == start_date]
+
+        return df
+
+        # print(start_date)
 
     def step(self, action):
         # sum fees of last 10 min
@@ -237,33 +243,41 @@ class BlockchainEnv(gym.Env):
         #     get_transaction_per_second("./env/blockchaindata/state/transactions-per-second_*.pkl", self.current_time,
         #                                self.current_time, 'x')['y'].values[0]
         # print("main_value", main_value)
-        difficulty = search_by_timestamp("./env/blockchaindata/networkstate/difficulty.csv", self.current_time)['y'].values[0]
-        mempool_growth = search_by_timestamp("./env/blockchaindata/networkstate/mempool_growth.csv", self.current_time)['y'].values[0]
-        n_transactions = search_by_timestamp("./env/blockchaindata/networkstate/n-transactions.csv", self.current_time)['y'].values[0]
+        # difficulty = \
+        # search_by_timestamp("./env/blockchaindata/networkstate/difficulty.csv", self.current_time)['y'].values[0]
+        # mempool_growth = \
+        # search_by_timestamp("./env/blockchaindata/networkstate/mempool_growth.csv", self.current_time)['y'].values[0]
+        # n_transactions = \
+        # search_by_timestamp("./env/blockchaindata/networkstate/n-transactions.csv", self.current_time)['y'].values[0]
         # output_volume = search_by_timestamp("./env/blockchaindata/networkstate/output-volume.csv", self.current_time)['y'].values[0]
         # utxo_count = search_by_timestamp_by_x("./env/blockchaindata/networkstate/utxo-count.csv", self.current_time)['y'].values[0]
         # print("utxo_count",utxo_count)
+
+        searched_data = self.search_state_data_by_timestamp(self.current_time)
+
+        # print(searched_data.values[0])
+
         frame = np.array([
-            # main_value,
-            difficulty,
-            mempool_growth,
-            n_transactions,
-            # output_volume,
-            # utxo_count
+            searched_data.values[0][2],
+            searched_data.values[0][3],
+            searched_data.values[0][4],
+            searched_data.values[0][5],
         ])
+
+        print(frame)
 
         # print(frame)
 
         # normalize array
-        normalizedData = frame / np.linalg.norm(frame)
+        # normalizedData = frame / np.linalg.norm(frame)
 
         # print("normalizedData", normalizedData)
 
-        return normalizedData
+        return frame
         # pass
 
     def reset(self):
-        print("reset called")
+        # print("reset called")
 
         # set current_time to a random time between 1480982400 and 2020:01:01 01:00:00
         generated_timestamp = random.randint(1480982400, 1577836800)

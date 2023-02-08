@@ -1,21 +1,15 @@
-import gym
 import pandas as pd
-import pymysql as pymysql
 from stable_baselines3 import PPO
-from stable_baselines3.common.vec_env import DummyVecEnv
-
-from env.BlockchainEnv import BlockchainEnv, get_transaction_per_second
-from stable_baselines3.common.callbacks import CheckpointCallback
-from stable_baselines3.common.callbacks import ProgressBarCallback
 from stable_baselines3.common.env_util import make_vec_env
-from stable_baselines3.common.monitor import Monitor
 
-# conn = pymysql.connect(host='database-1.c6kh0b7pbenp.ap-southeast-1.rds.amazonaws.com', user='admin', password='l3pP*Q2Si24y', db='blockchain')
+from env.BlockchainEnv import BlockchainEnv
 
-# env = BlockchainEnv()
-# env = BlockchainEnv()
 
-env = make_vec_env(BlockchainEnv, n_envs=8)
+state_data = pd.read_csv("./env/blockchaindata/networkstate/final_state.csv")
+
+env = BlockchainEnv(state_data)
+
+# env = make_vec_env(pre_env, n_envs=8)
 
 # obs = env.reset()
 
@@ -27,20 +21,20 @@ env = make_vec_env(BlockchainEnv, n_envs=8)
 
 
 # Save a checkpoint every 1000 steps
-checkpoint_callback = CheckpointCallback(
-    save_freq=100,
-    save_path="./logs/",
-    name_prefix="rl_model",
-    save_replay_buffer=True,
-    save_vecnormalize=True,
-)
+# checkpoint_callback = CheckpointCallback(
+#     save_freq=100,
+#     save_path="./logs/",
+#     name_prefix="rl_model",
+#     save_replay_buffer=True,
+#     save_vecnormalize=True,
+# )
 
 model = PPO(
     "MlpPolicy",
     env,
-    n_steps=8,
+    n_steps=64,
     verbose=1,
-    batch_size=8 * 8,
+    batch_size=64 * 1,
     tensorboard_log="./ppo_BlockchainEnv_tensorboard/"
 )
 
@@ -58,7 +52,6 @@ for i in range(1, 1000):
     model.learn(
         total_timesteps=100000,
         # callback=checkpoint_callback,
-        progress_bar=True,
         reset_num_timesteps=True,
         tb_log_name="PPO",
     )

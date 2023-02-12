@@ -1,14 +1,8 @@
-import gym
-import pandas as pd
-import pymysql as pymysql
 from stable_baselines3 import PPO
-from stable_baselines3.common.vec_env import DummyVecEnv
-
-from env.BlockchainEnv import BlockchainEnv, get_transaction_per_second
 from stable_baselines3.common.callbacks import CheckpointCallback
-from stable_baselines3.common.callbacks import ProgressBarCallback
 from stable_baselines3.common.env_util import make_vec_env
-from stable_baselines3.common.monitor import Monitor
+
+from env.BlockchainEnv import BlockchainEnv
 
 # conn = pymysql.connect(host='database-1.c6kh0b7pbenp.ap-southeast-1.rds.amazonaws.com', user='admin', password='l3pP*Q2Si24y', db='blockchain')
 
@@ -58,7 +52,6 @@ for i in range(1, 1000):
     model.learn(
         total_timesteps=100000,
         # callback=checkpoint_callback,
-        progress_bar=True,
         reset_num_timesteps=True,
         tb_log_name="PPO",
     )

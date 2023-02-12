@@ -1,15 +1,13 @@
+import glob
 import random
-from typing import Optional, Union, List, Tuple, Any, Dict
+from datetime import datetime
 
+import dask
 import gym
-from gym import spaces
 import numpy as np
 import pandas as pd
-import dask
-import glob
-from datetime import datetime
-import dask.dataframe as dd
 from fastparquet import ParquetFile
+from gym import spaces
 
 DURATION = 1 * 60 * 60 * 24  # 1 day
 EPISODE_END = 60 * 60 * 24 * 10  # 10 days

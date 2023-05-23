@@ -5,11 +5,10 @@ from stable_baselines3.common.env_util import make_vec_env
 from env.BlockchainEnv import BlockchainEnv
 
 
-state_data = pd.read_csv("./env/blockchaindata/networkstate/final_state.csv")
 
-env = BlockchainEnv(state_data)
+# env = BlockchainEnv()
 
-# env = make_vec_env(pre_env, n_envs=8)
+env = make_vec_env(BlockchainEnv, n_envs=8)
 
 # obs = env.reset()
 
@@ -38,24 +37,23 @@ model = PPO(
     tensorboard_log="./ppo_BlockchainEnv_tensorboard/"
 )
 
-# model.learn(
-#         total_timesteps=1,
-#         # callback=checkpoint_callback,
-#         progress_bar=True,
-#         reset_num_timesteps=True,
-#         tb_log_name="PPO",
-#     )
-
-TIMESTEPS = 10
-
-for i in range(1, 1000):
-    model.learn(
-        total_timesteps=100000,
+model.learn(
+        total_timesteps=10,
         # callback=checkpoint_callback,
         reset_num_timesteps=True,
         tb_log_name="PPO",
     )
-    model.save(f"ppo_{TIMESTEPS * i}_BlockchainEnv")
+
+# TIMESTEPS = 10
+#
+# for i in range(1, 1000):
+#     model.learn(
+#         total_timesteps=100000,
+#         # callback=checkpoint_callback,
+#         reset_num_timesteps=True,
+#         tb_log_name="PPO",
+#     )
+#     model.save(f"ppo_{TIMESTEPS * i}_BlockchainEnv")
 
 
 # test_rewards = []

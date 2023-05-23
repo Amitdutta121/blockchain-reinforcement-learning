@@ -8,6 +8,7 @@ import numpy as np
 import pandas as pd
 from fastparquet import ParquetFile
 from gym import spaces
+import math
 
 DURATION = 1 * 60 * 60 * 24  # 1 day
 EPISODE_END = 60 * 60 * 24 * 20  # 10 days
@@ -163,17 +164,18 @@ class BlockchainEnv(gym.Env):
     """A Blockchain simulation env for OpenAI gym"""
     metadata = {'render.modes': ['human']}
 
-    def __init__(self, state_data):
+    def __init__(self):
         super(BlockchainEnv, self).__init__()
 
         # set content time 2016:01:01 00:00:00
         self.current_time = 1480982400
         self.starting_time = 1480982400
-        self.block_size = random.randint(0, 10000000)
+        self.block_size = random.randint(0, 1000000)
 
         # action space
         # self.action_space = spaces.Box(low=np.array([0]), high=np.array([1000000]), dtype=np.float32)
-        self.action_space = spaces.Discrete(10000000)
+        # self.action_space = spaces.Discrete(1000000)
+        self.action_space = spaces.Box(low=0.0000001, high=1, shape=(1,), dtype=np.float32)
 
         # observation space
         self.observation_space = spaces.Box(low=0, high=1, shape=(4,), dtype=np.float32)
@@ -181,7 +183,7 @@ class BlockchainEnv(gym.Env):
         # reward
         self.reward = 0
 
-        self.state_data = state_data
+        self.state_data = pd.read_csv("./env/blockchaindata/networkstate/final_state.csv")
 
     # def filter_data_by_group_in_dataframe(self, start_timestamp, end_timestamp):
     #     #     extract only date from timestamp
@@ -207,16 +209,18 @@ class BlockchainEnv(gym.Env):
 
     def step(self, action):
         # sum fees of last 10 min
-        # print("action", action)
+        print("action========================", action[0])
+        actual_action = math.floor(action[0] * 10000000)
+        print("actual_action", actual_action)
         total_fee_of_included_transactions, uncounted_transactions = sum_fees(read_transactions_new(
             self.current_time - DURATION, self.current_time,
             "./env/blockchaindata/dump/transaction_dump_parquet"
-        ), action)
+        ), actual_action)
 
-        # print("total_fee_of_included_transactions",total_fee_of_included_transactions)
-        # print("uncounted_transactions",uncounted_transactions)
+        # print("total_fee_of_included_transactions", total_fee_of_included_transactions)
+        # print("uncounted_transactions", uncounted_transactions)
 
-        reward = total_fee_of_included_transactions - (1 / action) * uncounted_transactions
+        reward = total_fee_of_included_transactions - (1 / actual_action) * uncounted_transactions
 
         # print("reward", reward)
         # add 10 min to current time
@@ -285,5 +289,5 @@ class BlockchainEnv(gym.Env):
         self.current_time = generated_timestamp
         self.starting_time = generated_timestamp
 
-        self.block_size = 1000000
+        self.block_size = random.randint(0, 1000000)
         return self._next_observation()

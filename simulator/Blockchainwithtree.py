@@ -78,9 +78,11 @@ class Blockchain:
 
         if self.current_block_size >= self.min_block_size:
             self.mine_block()
+            print("AFTER MINE: ", len(self.pending_transactions))
         else:
             waiting_time = (datetime.datetime.now() - transaction.timestamp).total_seconds() * 1000
             self.waiting_times.append(waiting_time)
+        print("NO MINE: ", len(self.pending_transactions))
 
     def mine_block(self):
         timestamp = datetime.datetime.now()

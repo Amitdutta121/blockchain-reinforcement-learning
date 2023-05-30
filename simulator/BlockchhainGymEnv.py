@@ -81,8 +81,9 @@ class Blockchain:
         self.current_block_size += transaction.block_size
 
         len_of_transactions = len(self.pending_transactions)
+
         if should_mine:
-            print("current_block_size", self.current_block_size)
+            print("Block created with size:---------------------------- ", self.current_block_size, " ----- ", len_of_transactions)
             self.mine_block()
         else:
             waiting_time = (time.time_ns() - transaction.timestamp)
@@ -108,9 +109,10 @@ class Blockchain:
         # Average waiting time
         if len(data) > 0:
             average_waiting_time = waiting_time / len(data)
+        print("Block info: ", new_block_size, " ----- ", new_block_size, " ----- ", average_waiting_time, " ----- ", len(data))
         new_block = Block(timestamp, data, self.get_latest_block().hash, new_block_size, average_waiting_time)
         self.add_block(new_block)
-        self.pending_transactions = self.pending_transactions
+        self.pending_transactions = []
         self.current_block_size = 0
 
     def add_block(self, new_block):
@@ -140,7 +142,7 @@ def normalize_array(arr):
 
 
 class BlockchainCustomEnv(gym.Env):
-    def __init__(self):
+    def __init__(self, transaction_coefficient, waiting_time_coefficient, pending_transaction_coefficient):
         super(BlockchainCustomEnv, self).__init__()
 
         # Define your custom observation space
@@ -155,15 +157,16 @@ class BlockchainCustomEnv(gym.Env):
         self.blockchain = Blockchain()
 
         # Define the coefficients for the reward components
-        self.transaction_coefficient = 1.0
-        self.waiting_time_coefficient = -0.5
-        self.utilization_coefficient = 0.5
+        self.transaction_coefficient = transaction_coefficient
+        self.waiting_time_coefficient = waiting_time_coefficient
+        self.pending_transaction_coefficient = pending_transaction_coefficient
 
     def step(self, action):
         # Perform one step in the environment given the selected action
         # Update the state, calculate the reward, and determine if the episode is done
 
         # Create transaction with random size
+        global current_block_size
         transaction_size = random.randint(1, 100)
         transaction_data = "Transaction " + str(random.randint(1, 100) + 1)
 
@@ -183,20 +186,35 @@ class BlockchainCustomEnv(gym.Env):
         else:
             waiting_time = 0
 
+        pending_transactions_reward = 0
+
+        manual_reward = 0
+
         # Work based on action
         if action == 0:
             # Wait for more transactions
             pending_transactions, current_block_size = self.blockchain.add_transaction(transaction, should_mine=False)
+            pending_transactions_reward = pending_transactions
+
+            # pending_transactions between 0 and 10
+            manual_reward = pending_transactions * 0.9 - - (waiting_time/100000) * 0.15
+            print("xxxxxxxxx: ", pending_transactions)
         elif action == 1:
             # Create block with current transactions
             len_of_transactions_included_in_block, current_block_size = self.blockchain.add_transaction(transaction,
                                                                                                         should_mine=True)
+            print("BLOCK  ======================== ", len_of_transactions_included_in_block)
             number_of_transactions_included_in_block = len_of_transactions_included_in_block
+            manual_reward = len_of_transactions_included_in_block * 0.7 - (waiting_time/100000) * 0.2
+            if len_of_transactions_included_in_block < 50:
+                manual_reward -= 100
 
-        reward = (
-                self.transaction_coefficient * number_of_transactions_included_in_block +
-                self.waiting_time_coefficient * waiting_time
-        )
+        # reward = (
+        #         self.transaction_coefficient * number_of_transactions_included_in_block +
+        #         self.waiting_time_coefficient * waiting_time
+        # )
+        reward = manual_reward
+        print("Reward: ", reward)
 
         observation = self._next_observation()
 
